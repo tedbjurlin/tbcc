@@ -5,9 +5,9 @@ This project is a naive C compiler following the [book](https://norasandler.com/
 ### Progress
 
 - Chapter 1: Constant integers
-    - [/] Lexing a basic source file
-    - [/] Parsing the produced tokens
-    - [/] Converting the C abstract syntax tree into an assembly abstract
+    - [x] Lexing a basic source file
+    - [x] Parsing the produced tokens
+    - [x] Converting the C abstract syntax tree into an assembly abstract
             syntax tree.
     - [ ] Generating assembly code from the tree.
 
