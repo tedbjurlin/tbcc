@@ -3,8 +3,17 @@
 #include <string.h>
 #include "air.h"
 
+// Initial capacity of the instruction list.
 const int ILCAP = 16;
 
+/**
+ * @brief Creates an instruction list.
+ * 
+ * Allocates space for `ILCAP` instructions initially, setting size to 0 and
+ * capacity ot `ILCAP`.
+ * 
+ * @returns A pointer to the newly created list.
+ */
 AIR_InstructionList *create_instructionlist() {
     AIR_InstructionList *list = malloc(sizeof(AIR_InstructionList));
     list->instructions = malloc(sizeof(AIR_Instruction) * ILCAP);
@@ -13,6 +22,14 @@ AIR_InstructionList *create_instructionlist() {
     return list;
 }
 
+/**
+ * @brief Frees a list of instructions.
+ * 
+ * Frees each operation in each instruction, then frees the list of instruction,
+ * then finally the data structure itself.
+ * 
+ * @param list A pointer to the list to be freed.
+ */
 void free_instructionlist(AIR_InstructionList *list) {
     for (int i = 0; i < list->size; ++i) {
         free((list->instructions)[i].op1);
@@ -23,12 +40,28 @@ void free_instructionlist(AIR_InstructionList *list) {
     free(list);
 }
 
+/**
+ * @brief Frees an AIR program.
+ * 
+ * Frees the instruction list of the main function, then frees the function and
+ * the program.
+ * 
+ * @param prog A pointer to the program to be freed.
+ */
 void free_air(AIR_Program *prog) {
     free_instructionlist(prog->func->instructions);
     free(prog->func);
     free(prog);
 }
 
+/**
+ * @brief Inserts an instruction into the instruction list.
+ * 
+ * If the list is full, reallocates space, doubling the capacity of the list.
+ * 
+ * @param list A pointer to the instruction list.
+ * @param instruction The instruction to be inserted.
+ */
 void insert_instruction(AIR_InstructionList *list, AIR_Instruction instruction) {
     if (list->size == list->capacity) {
         list->capacity *= 2;
