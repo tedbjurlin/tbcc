@@ -72,7 +72,7 @@ TokenList *lex(char *source_file) {
         return NULL;
     }
 
-    TokenList *tokenlist = create_tokenlist(lexer->contents);
+    TokenList *tokenlist = create_tokenlist();
     if (!tokenlist) {
         return NULL;
     }

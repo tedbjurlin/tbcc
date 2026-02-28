@@ -164,7 +164,6 @@ int main(int argc, char *argv[]) {
 
     if (!air) {
         free(source_file);
-        free_air(air);
         return EXIT_SUCCESS;
     }
 
@@ -177,6 +176,10 @@ int main(int argc, char *argv[]) {
     *(assembly_filename + (filename_ext - c_filename)) = 's';
 
     // TODO: we will eventually do codegen here
+
+    // We don't need the AIR anymore
+    free_air(air);
+    air = NULL;
 
     // we don't need the source file any more
     free(source_file);
@@ -200,8 +203,6 @@ int main(int argc, char *argv[]) {
     FILE* assemble = popen(command, "r");
     if (assemble == NULL) {
         perror("Assembly failed");
-        free(assembly_filename);
-        free(output_filename);
         return EXIT_FAILURE;
     }
 
@@ -209,15 +210,11 @@ int main(int argc, char *argv[]) {
     int assembly_status = pclose(assemble);
     if (assembly_status == -1) {
         perror("pclose failed");
-        free(assembly_filename);
-        free(output_filename);
         return EXIT_FAILURE;
     }
 
     if (assembly_status != 0) {
-        fprintf(stderr, "Preprocessing failed with exit code: %d\n", assembly_status);
-        free(assembly_filename);
-        free(output_filename);
+        fprintf(stderr, "Assembling failed with exit code: %d\n", assembly_status);
         return EXIT_FAILURE;
     }
 
