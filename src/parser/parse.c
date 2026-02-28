@@ -86,6 +86,10 @@ AST_Function *parse_function(TokenList *tokens) {
     if (!expect_token(T_OPAREN, sym)) {
         return NULL;
     }
+    Token *arg = next_token(tokens);
+    if (!expect_token(T_VOID, arg)) {
+        return NULL;
+    }
     sym = next_token(tokens);
     if (!expect_token(T_CPAREN, sym)) {
         return NULL;
@@ -115,11 +119,39 @@ AST_Function *parse_function(TokenList *tokens) {
     return function;
 }
 
+/**
+ * @brief Expects the end of the token stream.
+ * 
+ * @param tokens The list of tokens.
+ * @returns `0` if eof, `1` otherwise.
+ */
+int expect_eof(TokenList *tokens) {
+    if (tokens->cursor == tokens->size) {
+        return 0;
+    } else {
+        Token *next = peek_token(tokens);
+        char tokbuf[128];
+        format_token(tokbuf, next);
+        prettyerror(
+            next->linestart,
+            next->line + 1,
+            next->column,
+            "parsing failed: unexpected '%s', expected EOF instead",
+            tokbuf
+        );
+        return 1;
+    }
+}
+
 AST_Program *parse(TokenList *tokens) {
     AST_Function *function = parse_function(tokens);
     if (!function) {
         return NULL;
     }
+    if (expect_eof(tokens)) {
+        free_function(function);
+        return NULL;
+    };
     AST_Program *program = malloc(sizeof(AST_Program));
     program->function = function;
     return program;

@@ -55,6 +55,9 @@ void pretty_print_token(Token token) {
         case T_RETURN:
             printf("T_RETURN");
             break;
+        case T_VOID:
+            printf("T_VOID");
+            break;
         case T_OCURLY:
             printf("T_OCURLY");
             break;
@@ -77,7 +80,7 @@ void pretty_print_token(Token token) {
             printf("T_INTCONST");
             break;
     }
-    if (token.type < 4) {
+    if (token.type < 5) {
         char *p = malloc(token.str.size + 1);
         snprintf(p, token.str.size + 1, "%s", token.str.ptr);
         printf("(%s) ", p);
@@ -96,8 +99,9 @@ void pretty_print_tokenlist(TokenList *tokenlist) {
 }
 
 void format_token(char *out, Token *tok) {
-    if (tok->type < 4) {
+    if (tok->type < 5) {
         strncpy(out, tok->str.ptr, tok->str.size);
+        out[tok->str.size] = '\0';
     } else {
         format_token_type(out, tok->type);
     }

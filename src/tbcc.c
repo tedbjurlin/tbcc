@@ -1,6 +1,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#define STB_ARGPARSE_IMPLEMENTATION
+#include "util/stb_argparse.h"
+
 #include "util/strwindow.h"
 #include "util/readfile.h"
 #include "lexer/lex.h"
@@ -10,15 +14,6 @@
 #include "air/air.h"
 #include "air/aerate.h"
 #include "codegen/codegen.h"
-
-/**
- * @brief Represents the target compilation stage represented by the user.
- */
-typedef enum COMPSTAGE {
-    COMPILE, // Compile completely
-    LEXING, // Stop after lexing
-    PARSING, // Stop after parsing
-} COMPSTAGE;
 
 /**
  * @brief Finds the start of the file extension in the file name.
@@ -34,30 +29,34 @@ const char *get_filename_ext(const char *filename) {
 }
 
 int main(int argc, char *argv[]) {
-    COMPSTAGE target_stage = COMPILE;
-    char *c_filename;
+    bool verbose = false;
+    bool stop_after_lex = false;
+    bool stop_after_parse = false;
+    bool stop_after_codegen = false;
+    const char *c_filename;
 
-    // process command line arguments. I would like to find a more idomatic
-    // way to do this at some point, but currently we are working fast and dirty
-    if (argc == 2) {
-        c_filename = argv[1];
-    } else if (argc == 3) {
-        if (strcmp(argv[1], "--lex") == 0) {
-            target_stage = LEXING;
-            c_filename = argv[2];
-        } else if (strcmp(argv[1], "--parse") == 0) {
-            target_stage = PARSING;
-            c_filename = argv[2];
-        } else if (strcmp(argv[2], "--lex") == 0) {
-            target_stage = LEXING;
-            c_filename = argv[1];
-        } else if (strcmp(argv[2], "--parse") == 0) {
-            target_stage = PARSING;
-            c_filename = argv[1];
-        }
+    argument_parser_t argparser;
+    argparse_init(&argparser, argc, argv, "A C compiler", NO_EPILOG);
+
+    argparse_arg_t args[] = {
+        ARGPARSE_FLAG_TRUE('v', "--verbose", &verbose, "print verbose messages"),
+        ARGPARSE_FLAG_TRUE('l', "--lex", &stop_after_lex, "terminate execution after lexing"),
+        ARGPARSE_FLAG_TRUE('p', "--parse", &stop_after_parse, "terminate execution after parsing"),
+        ARGPARSE_FLAG_TRUE('c', "--codegen", &stop_after_codegen, "terminate execution after codegen"),
+        ARGPARSE_POSITIONAL(STRING, "file", &c_filename, "name of input file")
+    };
+    argparse_error_t aerr = argparse_add_arguments(&argparser, args, 5);
+    argparse_check_error(aerr);
+
+    // process command line arguments.
+    if (argc < 2) {
+        argparse_print_help(&argparser);
+        return EXIT_SUCCESS;
     } else {
-        fprintf(stderr, "Usage: tbcc [--lex|--parse] INPUT_FILE\n");
-        return EXIT_FAILURE;
+        argparse_error_t err = argparse_parse_args(&argparser);
+        if (argparse_check_error(err)) {
+            return EXIT_FAILURE;
+        }
     }
 
     const char* filename_ext = get_filename_ext(c_filename);
@@ -77,7 +76,7 @@ int main(int argc, char *argv[]) {
     *(preprocessed_filename + (filename_ext - c_filename)) = 'i';
 
     // set up command for preprocessing
-    char command[128];
+    char *command = malloc(15 + strlen(c_filename) + strlen(preprocessed_filename));
     sprintf(command, "gcc -E -P %s -o %s", c_filename, preprocessed_filename);
 
     // spawn subprocess running gcc for preprocessing
@@ -85,6 +84,7 @@ int main(int argc, char *argv[]) {
     if (preprocess == NULL) {
         perror("Preprocessing failed");
         free(preprocessed_filename);
+        free(command);
         return EXIT_FAILURE;
     }
 
@@ -93,13 +93,18 @@ int main(int argc, char *argv[]) {
     if (preprocess_status == -1) {
         perror("pclose failed");
         free(preprocessed_filename);
+        free(command);
         return EXIT_FAILURE;
     }
     if (preprocess_status != 0) {
         fprintf(stderr, "Preprocessing failed with exit code: %d\n", preprocess_status);
         free(preprocessed_filename);
+        free(command);
         return EXIT_FAILURE;
     }
+
+    free(command);
+    command = NULL;
 
     // read the preprocessed file as our source file
     //
@@ -119,11 +124,13 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // pretty print the tokens for debugging
-    pretty_print_tokenlist(tokenlist);
+    if (verbose) {
+        // pretty print the tokens for debugging
+        pretty_print_tokenlist(tokenlist);
+    }
 
     // if we are targeting lexing, terminate here
-    if (target_stage == LEXING) {
+    if (stop_after_lex) {
         free(source_file);
         free(preprocessed_filename);
         free_tokenlist(tokenlist);
@@ -146,16 +153,17 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // pretty print the ast for debugging
-    pretty_print_ast(ast);
+    if (verbose) {
+        // pretty print the ast for debugging
+        pretty_print_ast(ast);
+    }
 
     // if the target is parsing, terminate here
-    if (target_stage == PARSING) {
+    if (stop_after_parse) {
         free(source_file);
         free_ast(ast);
         return EXIT_SUCCESS;
     }
-
     // process the AST into an AIR (Assembly Intermediate Representation)
     AIR_Program *air = aerate(ast);
 
@@ -165,11 +173,19 @@ int main(int argc, char *argv[]) {
 
     if (!air) {
         free(source_file);
-        return EXIT_SUCCESS;
+        return EXIT_FAILURE;
     }
 
-    // pretty print the AIR for debugging
-    pretty_print_air(air);
+    if (verbose) {
+        // pretty print the air for debugging
+        pretty_print_air(air);
+    }
+
+    if (stop_after_codegen) {
+        free_air(air);
+        free(source_file);
+        return EXIT_SUCCESS;
+    }
 
     // create name of .s file for listing assembly
     char *assembly_filename = malloc(strlen(c_filename));
@@ -209,6 +225,7 @@ int main(int argc, char *argv[]) {
     strcpy(output_filename, c_filename);
     *(output_filename + (filename_ext - c_filename) - 1) = '\0';
 
+    command = malloc(9 + strlen(assembly_filename) + strlen(output_filename));
     // create command to assemble program
     sprintf(command, "gcc %s -o %s", assembly_filename, output_filename);
 
@@ -222,6 +239,7 @@ int main(int argc, char *argv[]) {
     FILE* assemble = popen(command, "r");
     if (assemble == NULL) {
         perror("Assembly failed");
+        free(command);
         return EXIT_FAILURE;
     }
 
@@ -229,13 +247,16 @@ int main(int argc, char *argv[]) {
     int assembly_status = pclose(assemble);
     if (assembly_status == -1) {
         perror("pclose failed");
+        free(command);
         return EXIT_FAILURE;
     }
 
     if (assembly_status != 0) {
         fprintf(stderr, "Assembling failed with exit code: %d\n", assembly_status);
+        free(command);
         return EXIT_FAILURE;
     }
+    free(command);
 
     return EXIT_SUCCESS;
 }

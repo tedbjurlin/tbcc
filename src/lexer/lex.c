@@ -61,6 +61,8 @@ Token lex_keyword_if(Token token) {
         token.type = T_INT;
     } else if (strncmp("return", token.str.ptr, token.str.size) == 0) {
         token.type = T_RETURN;
+    } else if (strncmp("void", token.str.ptr, token.str.size) == 0) {
+        token.type = T_VOID;
     }
 
     return token;
@@ -135,7 +137,21 @@ TokenList *lex(char *source_file) {
                         tokenlist
                     );
                 } else if (isdigit(next)) {
-                    insert_token(lex_number(lexer), tokenlist);
+                    Token number = lex_number(lexer);
+                    
+
+                    if (isalpha(peek_char(lexer)) || peek_char(lexer) == '_') {
+                        prettyerror(
+                            lexer->linestart,
+                            lexer->linenum + 1,
+                            lexer->cursor - lexer->linestart,
+                            "lexing failed: identifiers may not start with a number"
+                        );
+                        free_tokenlist(tokenlist);
+                        free(lexer);
+                        return NULL;
+                    }
+                    insert_token(number, tokenlist);
                 } else {
                     prettyerror(
                         lexer->linestart,

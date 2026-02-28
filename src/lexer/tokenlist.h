@@ -13,6 +13,7 @@ typedef enum TokenType {
     // Keywords
     T_INT, // `int` keyword.
     T_RETURN, // `return` keyword.
+    T_VOID, // void keyword.
     // Symbols
     T_OCURLY, // `{` symbol.
     T_CCURLY, // `}` symbol.
