@@ -9,6 +9,7 @@
 #include "parser/parse.h"
 #include "air/air.h"
 #include "air/aerate.h"
+#include "codegen/codegen.h"
 
 /**
  * @brief Represents the target compilation stage represented by the user.
@@ -175,7 +176,25 @@ int main(int argc, char *argv[]) {
     strcpy(assembly_filename, c_filename);
     *(assembly_filename + (filename_ext - c_filename)) = 's';
 
-    // TODO: we will eventually do codegen here
+    FILE *assembly_file = fopen(assembly_filename, "w");
+    if (!assembly_file) {
+        perror("accessing assembly file failed");
+        free_air(air);
+        free(source_file);
+        free(assembly_filename);
+        return EXIT_FAILURE;
+    }
+
+    // generate assembly code
+    if (codegen(assembly_file, air)) {
+        fclose(assembly_file);
+        free_air(air);
+        free(source_file);
+        free(assembly_filename);
+        return EXIT_FAILURE;
+    }
+
+    fclose(assembly_file);
 
     // We don't need the AIR anymore
     free_air(air);
