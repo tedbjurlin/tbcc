@@ -9,4 +9,5 @@ A C compiler following the [book](https://norasandler.com/book/) by Nora Sandler
     - [x] Parsing the produced tokens
     - [x] Converting the C abstract syntax tree into an assembly abstract
             syntax tree.
-    - [ ] Generating assembly code from the tree.
+    - [x] Generating assembly code from the tree.
+    - [ ] Running tests provided by Nora Sandler
