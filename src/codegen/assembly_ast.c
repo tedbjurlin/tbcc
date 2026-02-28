@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "air.h"
+#include "assembly_ast.h"
 
 // Initial capacity of the instruction list.
 const int ILCAP = 16;
@@ -14,9 +14,9 @@ const int ILCAP = 16;
 * 
 * @returns A pointer to the newly created list.
 */
-AIR_InstructionList *create_instructionlist() {
-  AIR_InstructionList *list = malloc(sizeof(AIR_InstructionList));
-  list->instructions = malloc(sizeof(AIR_Instruction) * ILCAP);
+ASM_AST_InstructionList *create_instructionlist() {
+  ASM_AST_InstructionList *list = malloc(sizeof(ASM_AST_InstructionList));
+  list->instructions = malloc(sizeof(ASM_AST_Instruction) * ILCAP);
   list->capacity = ILCAP;
   list->size = 0;
   return list;
@@ -30,7 +30,7 @@ AIR_InstructionList *create_instructionlist() {
 * 
 * @param list A pointer to the list to be freed.
 */
-void free_instructionlist(AIR_InstructionList *list) {
+void free_instructionlist(ASM_AST_InstructionList *list) {
   for (int i = 0; i < list->size; ++i) {
     free((list->instructions)[i].op1);
     free((list->instructions)[i].op2);
@@ -41,14 +41,14 @@ void free_instructionlist(AIR_InstructionList *list) {
 }
 
 /**
-* @brief Frees an AIR program.
+* @brief Frees an ASM_AST program.
 * 
 * Frees the instruction list of the main function, then frees the function and
 * the program.
 * 
 * @param prog A pointer to the program to be freed.
 */
-void free_air(AIR_Program *prog) {
+void free_asm_ast(ASM_AST_Program *prog) {
   free_instructionlist(prog->func->instructions);
   free(prog->func);
   free(prog);
@@ -62,7 +62,7 @@ void free_air(AIR_Program *prog) {
 * @param list A pointer to the instruction list.
 * @param instruction The instruction to be inserted.
 */
-void insert_instruction(AIR_InstructionList *list, AIR_Instruction instruction) {
+void insert_instruction(ASM_AST_InstructionList *list, ASM_AST_Instruction instruction) {
   if (list->size == list->capacity) {
     list->capacity *= 2;
     list->instructions = realloc(list->instructions, list->capacity);
@@ -71,29 +71,29 @@ void insert_instruction(AIR_InstructionList *list, AIR_Instruction instruction) 
   ++list->size;
 }
 
-void pretty_print_operand(AIR_Operand *op) {
+void pretty_print_operand(ASM_AST_Operand *op) {
   if (op) {
     switch (op->type) {
-      case AIR_IMM:
+      case ASM_AST_IMM:
       char val[128] = {'\0'};
       strncpy(val, op->immvalue.ptr, op->immvalue.size);
       printf("IMM(%s)", val);
       break;
-      case AIR_REGISTER:
+      case ASM_AST_REGISTER:
       printf("REGISTER");
     }
   }
   
 }
 
-void pretty_print_instructions(AIR_InstructionList *list) {
+void pretty_print_instructions(ASM_AST_InstructionList *list) {
   if (list) {
     for (int i = 0; i < list->size; ++i) {
       switch (list->instructions[i].type) {
-        case AIR_RET:
+        case ASM_AST_RET:
         printf("  RET\n");
         break;
-        case AIR_MOV:
+        case ASM_AST_MOV:
         printf("  MOV(");
         pretty_print_operand(list->instructions[i].op1);
         printf(", ");
@@ -104,11 +104,11 @@ void pretty_print_instructions(AIR_InstructionList *list) {
   }
 }
 
-void pretty_print_air(AIR_Program *air) {
-  if (air && air->func) {
+void pretty_print_asm_ast(ASM_AST_Program *asm_ast) {
+  if (asm_ast && asm_ast->func) {
     char name[128] = {'\0'};
-    strncpy(name, air->func->name.ptr, air->func->name.size);
+    strncpy(name, asm_ast->func->name.ptr, asm_ast->func->name.size);
     printf("Function %s:\n", name);
-    pretty_print_instructions(air->func->instructions);
+    pretty_print_instructions(asm_ast->func->instructions);
   }
 }

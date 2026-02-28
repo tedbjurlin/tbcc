@@ -11,9 +11,9 @@
 #include "lexer/tokenlist.h"
 #include "parser/ast.h"
 #include "parser/parse.h"
-#include "air/air.h"
-#include "air/aerate.h"
+#include "codegen/assembly_ast.h"
 #include "codegen/codegen.h"
+#include "assembly/assembly.h"
 
 /**
 * @brief Finds the start of the file extension in the file name.
@@ -164,25 +164,25 @@ int main(int argc, char *argv[]) {
     free_ast(ast);
     return EXIT_SUCCESS;
   }
-  // process the AST into an AIR (Assembly Intermediate Representation)
-  AIR_Program *air = aerate(ast);
+  // process the AST into an ASM_AST (Assembly Intermediate Representation)
+  ASM_AST_Program *asm_ast = codegen(ast);
   
   // we don't need the AST any more
   free_ast(ast);
   ast = NULL;
   
-  if (!air) {
+  if (!asm_ast) {
     free(source_file);
     return EXIT_FAILURE;
   }
   
   if (verbose) {
-    // pretty print the air for debugging
-    pretty_print_air(air);
+    // pretty print the asm_ast for debugging
+    pretty_print_asm_ast(asm_ast);
   }
   
   if (stop_after_codegen) {
-    free_air(air);
+    free_asm_ast(asm_ast);
     free(source_file);
     return EXIT_SUCCESS;
   }
@@ -195,16 +195,16 @@ int main(int argc, char *argv[]) {
   FILE *assembly_file = fopen(assembly_filename, "w");
   if (!assembly_file) {
     perror("accessing assembly file failed");
-    free_air(air);
+    free_asm_ast(asm_ast);
     free(source_file);
     free(assembly_filename);
     return EXIT_FAILURE;
   }
   
   // generate assembly code
-  if (codegen(assembly_file, air)) {
+  if (emit_assembly(assembly_file, asm_ast)) {
     fclose(assembly_file);
-    free_air(air);
+    free_asm_ast(asm_ast);
     free(source_file);
     free(assembly_filename);
     return EXIT_FAILURE;
@@ -212,9 +212,9 @@ int main(int argc, char *argv[]) {
   
   fclose(assembly_file);
   
-  // We don't need the AIR anymore
-  free_air(air);
-  air = NULL;
+  // We don't need the ASM_AST anymore
+  free_asm_ast(asm_ast);
+  asm_ast = NULL;
   
   // we don't need the source file any more
   free(source_file);

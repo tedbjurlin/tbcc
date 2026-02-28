@@ -1,102 +1,129 @@
+#include <stdlib.h>
 #include "codegen.h"
-#include <stdio.h>
-#include <string.h>
-#include "../air/air.h"
-
-char printbuf[128];
+#include "assembly_ast.h"
+#include "../parser/ast.h"
+#include "../util/prettyerror.h"
 
 /**
-* @brief Generates the assmebly of an operand.
+* @brief Construct the ASM_AST of an expression.
 * 
-* Prints the operand without a newline.
-* @param outifle The file handle of the output file.
-* @param op The operand.
-* @returns `0` on success, `1` otherwise.
+* Constructs an `ASM_AST_Instruction` from the current expression and inserts it
+* into the instruction list.
+* 
+* @param list A pointer to the list of instructions.
+* @param expression A pointer to the current expression.
+* @returns `0` if it the expression is valid, '1' otherwise.
 */
-int gen_operand(FILE *outfile, AIR_Operand *op) {
-  if (!op) {
-    return 1;
-  }
-  
-  switch (op->type) {
-    case AIR_REGISTER:
-    fprintf(outfile, "%%eax");
-    break;
-    case AIR_IMM:
-    strncpy(printbuf, op->immvalue.ptr, op->immvalue.size);
-    printbuf[op->immvalue.size] = '\0';
-    fprintf(outfile, "$%s", printbuf);
+int aerate_expression(ASM_AST_InstructionList *list, AST_Expression *expression) {
+  switch (expression->exptype) {
+    case AST_IntConst:
+    ASM_AST_Operand *op1 = malloc(sizeof(ASM_AST_Operand));
+    ASM_AST_Operand *op2 = malloc(sizeof(ASM_AST_Operand));
+    op1->type = ASM_AST_IMM;
+    op1->immvalue = expression->constvalue;
+    op2->type = ASM_AST_REGISTER;
+    insert_instruction(
+      list,
+      (ASM_AST_Instruction){
+        .type = ASM_AST_MOV,
+        .op1 = op1,
+        .op2 = op2,
+      }
+    );
     break;
     default:
+    prettyerror(
+      expression->linestart,
+      expression->line,
+      expression->column,
+      "parsing produced invalid expression"
+    );
     return 1;
   }
   return 0;
 }
 
 /**
-* @brief Generates the assembly of a single instruciton.
+* @brief Inserts a return ASM_AST into the instruction list following its expression.
 * 
-* @param outfile The file handle of the output file.
-* @param instruction The instruction.
-* @returns `0` on success, `1` otherwise.
+* @param list A pointer to the list of instructions.
+* @param expression A pointer to the current expression.
+* @returns `0` if the expression is valid, `1` otherwise.
 */
-int gen_instruction(FILE *outfile, AIR_Instruction *instruction) {
-  if (!instruction) {
+int aerate_return(ASM_AST_InstructionList *list, AST_Expression *expression) {
+  // return 1 if aerate_expression returns 1
+  if (aerate_expression(list, expression)) {
     return 1;
   }
-  switch (instruction->type) {
-    case AIR_MOV:
-    fprintf(outfile, "    movl    ");
-    gen_operand(outfile, instruction->op1);
-    fprintf(outfile, ", ");
-    gen_operand(outfile, instruction->op2);
-    putc('\n', outfile);
-    break;
-    case AIR_RET:
-    fprintf(outfile, "    ret\n");
-    break;
-    default:
-    return 1;
-  }
-  return 0;
-}
-
-/**
-* @brief Generates assembly of a function into the outfile.
-* 
-* @param outfile The file handle of the output file.
-* @param func A pointer to the function.
-* @returns `0` if success, `1` otherwise.
-*/
-int gen_function(FILE *outfile, AIR_Function *func) {
-  if (!func) {
-    return 1;
-  }
-  
-  strncpy(printbuf, func->name.ptr, func->name.size);
-  printbuf[func->name.size] = '\0';
-  fprintf(outfile, "    .globl  %s\n", printbuf);
-  fprintf(outfile, "    .type   %s, @function\n", printbuf);
-  fprintf(outfile, "%s:\n", printbuf);
-  
-  for (int i = 0; i < func->instructions->size; i++) {
-    if (gen_instruction(outfile, func->instructions->instructions + i)) {
-      return 1;
+  insert_instruction(
+    list,
+    (ASM_AST_Instruction){
+      .type = ASM_AST_RET,
     }
-  }
-  
+  );
   return 0;
 }
 
-int codegen(FILE *outfile, AIR_Program *prog) {
-  if (!outfile || !prog) {
-    return 1;
+/**
+* @brief Constructs a list of the instructions that correspond to a statement.
+* 
+* @param stmt A pointer to the current statement.
+* @returns A pointer to the list of generated instructions. `NULL` on failure.
+*/
+ASM_AST_InstructionList *aerate_instructions(AST_Statement *stmt) {
+  ASM_AST_InstructionList *list = create_instructionlist();
+  switch (stmt->stmttype) {
+    case AST_Return:
+    // aerate_return returns 1 if it fails
+    if (aerate_return(list, stmt->expression)) {
+      free_instructionlist(list);
+      return NULL;
+    };
+    break;
+    default:
+    prettyerror(
+      stmt->linestart,
+      stmt->line,
+      stmt->column,
+      "parsing produced invalid statement"
+    );
+    free_instructionlist(list);
+    return NULL;
+  }
+  return list;
+}
+
+/**
+* @brief Constructs the ASM_AST for a function.
+* 
+* @param func A pointer to the current function.
+* @returns A pointer to the ASM_AST function.
+*/
+ASM_AST_Function *aerate_function(AST_Function *func) {
+  // no error on null instructions because functions are allowed to be empty.
+  // this may be wrong from the assembler perspective. I will readdress it
+  // when I start working on typechecking.
+  ASM_AST_InstructionList *list = aerate_instructions(func->statement);
+  
+  ASM_AST_Function *rfunc = malloc(sizeof(ASM_AST_Function));
+  rfunc->name = func->name;
+  rfunc->instructions = list;
+  return rfunc;
+}
+
+/**
+* @brief Convert a program into the assembler intermediate representation.
+* 
+* @param prog A pointer to the program.
+* @returns A pointer to the ASM_AST for the program. NULL on failure.
+*/
+ASM_AST_Program *codegen(AST_Program *prog) {
+  ASM_AST_Function *func = aerate_function(prog->function);
+  if (!func) {
+    return NULL;
   }
   
-  if (gen_function(outfile, prog->func)) {
-    return 1;
-  }
-  
-  fprintf(outfile, "	  .section    .note.GNU-stack,\"\",@progbits\n");
-  return 0;
+  ASM_AST_Program *rprog = malloc(sizeof(ASM_AST_Program));
+  rprog->func = func;
+  return rprog;
 }

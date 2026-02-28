@@ -1,13 +1,11 @@
-#include <stdio.h>
-#include "../air/air.h"
+#include "assembly_ast.h"
+#include "../parser/ast.h"
 
 /**
-* @brief Emit x64 assembly code into the outfile.
-* 
-* Generates assembly code from the `prog` and emits it into the outfile.
-* 
-* @param outfile The file handle of the output file.
-* @param prog A pointer to the program.
-* @returns `0` if success, `1` otherwise.
+* Processes a C Abstract Syntax Tree (AST) to create an Assembly Intermediate
+* Representation (ASM_AST). Upon failure, prints a relevant error to stderr and returns
+* `NULL`.
+* @param prog A pointer to the root node of the AST.
+* @returns A pointer to the root node of the ASM_AST on success. `NULL` on failure.
 */
-int codegen(FILE *outfile, AIR_Program *prog);
+ASM_AST_Program *codegen(AST_Program *prog);
